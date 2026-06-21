@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Logs
+*.log
+
+# Sensitive config
+.claude/
+
+# Assets
+assets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

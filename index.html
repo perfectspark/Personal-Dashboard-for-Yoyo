@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personal Dashboard for Yoyo</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg-deep:#f5f7fb;--bg-card:#ffffff;--border-subtle:rgba(0,0,0,0.06);
+    --text-primary:#1a1f2e;--text-secondary:#5a6378;--text-dim:#9aa1b2;
+    --gold:#f0b90b;--gold-glow:rgba(240,185,11,0.25);--cyan:#00d4aa;--cyan-glow:rgba(0,212,170,0.25);
+    --blue:#4d8af0;--blue-glow:rgba(77,138,240,0.25);--purple:#a277ff;--purple-glow:rgba(162,119,255,0.25);
+    --pink:#ff6b9d;--red-soft:#ff5577;--radius:14px;
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;
+    background:var(--bg-deep);
+    background-image:radial-gradient(ellipse 80% 60% at 30% 20%,rgba(77,138,240,0.06) 0%,transparent 60%),radial-gradient(ellipse 60% 70% at 75% 65%,rgba(162,119,255,0.04) 0%,transparent 60%);
+    color:var(--text-primary);min-height:100vh;padding:24px;display:flex;justify-content:center;
+  }
+  .dashboard{width:100%;max-width:1140px;display:flex;flex-direction:column;gap:14px}
+
+  .header{display:flex;align-items:center;justify-content:space-between;padding:6px 0}
+  .header .logo{font-size:1.6rem;font-weight:700;letter-spacing:.04em;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .header .tagline{font-size:.82rem;color:var(--text-dim);letter-spacing:.05em}
+
+  .card{background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius);padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.03);position:relative;overflow:hidden;transition:box-shadow .3s,border-color .3s}
+  .card::before{content:'';position:absolute;top:0;left:0;width:100%;height:2px;border-radius:var(--radius) var(--radius) 0 0}
+  .card:hover{border-color:rgba(0,0,0,.12);box-shadow:0 2px 6px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.05)}
+  .card-title{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+  .card-title .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .card-title-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+  /* Salary */
+  .card-salary::before{background:linear-gradient(90deg,var(--gold),#ff8c00)}
+  .card-salary .card-title{color:var(--gold)}
+  .card-salary .card-title .dot{background:var(--gold);box-shadow:0 0 8px var(--gold-glow)}
+
+  .salary-top-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .salary-stat{flex:1;min-width:70px;text-align:center;padding:6px 3px;background:rgba(0,0,0,.025);border-radius:6px}
+  .salary-stat .stat-val{font-size:.9rem;font-weight:700;color:#1a1f2e}
+  .salary-stat .stat-label{font-size:.6rem;color:var(--text-dim);margin-top:2px;text-transform:uppercase;letter-spacing:.03em}
+  .salary-stat.highlight .stat-val{color:#1a1f2e}
+
+  /* Year tabs */
+  .year-tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .year-tab{background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.08);color:var(--text-secondary);padding:3px 8px;border-radius:5px;cursor:pointer;font-size:.68rem;letter-spacing:.03em;transition:all .2s}
+  .year-tab:hover,.year-tab.active{background:rgba(240,185,11,.12);border-color:#d4a000;color:#8a6500}
+
+  .chart-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+  .chart-box{flex:2;min-width:340px}
+  .chart-box .chart-title{font-size:.64rem;color:var(--text-dim);letter-spacing:.04em;margin-bottom:6px;text-transform:uppercase}
+  canvas{width:100%;display:block}
+  #salaryChart{height:180px}
+  .pie-box{flex:1;min-width:200px}
+  .pie-box .chart-title{font-size:.68rem;color:var(--text-dim);letter-spacing:.04em;margin-bottom:6px;text-transform:uppercase}
+  #salaryPie{height:180px}
+
+  /* Annual table */
+  .annual-table-wrap{margin-bottom:8px;overflow-x:auto}
+  .annual-table{width:100%;border-collapse:collapse;font-size:.65rem}
+  .annual-table th{background:rgba(0,0,0,.06);color:var(--text-dim);font-weight:500;padding:4px 6px;text-align:right;white-space:nowrap;letter-spacing:.02em}
+  .annual-table th:first-child{text-align:center}
+  .annual-table td{padding:3px 6px;text-align:right;border-bottom:1px solid rgba(0,0,0,0.02);white-space:nowrap;color:var(--text-primary)}
+  .annual-table td:first-child{text-align:center;font-weight:600}
+  .annual-table tbody tr:hover{background:rgba(0,0,0,0.02)}
+  .annual-table .col-up{color:var(--text-primary)}
+  .annual-table .col-down{color:var(--text-primary)}
+  .annual-table .col-total{font-weight:600}
+
+  /* Monthly table */
+  .salary-table-wrap{max-height:240px;overflow-y:auto;border-radius:6px}
+  .salary-table-wrap::-webkit-scrollbar{width:4px}
+  .salary-table-wrap::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.06);border-radius:2px}
+  .salary-table{width:100%;border-collapse:collapse;font-size:.65rem}
+  .salary-table thead{position:sticky;top:0;z-index:1}
+  .salary-table th{background:rgba(0,0,0,.06);color:var(--text-dim);font-weight:500;padding:4px 6px;text-align:right;white-space:nowrap;letter-spacing:.02em}
+  .salary-table th:first-child,.salary-table th:nth-child(2){text-align:center}
+  .salary-table td{padding:3px 6px;text-align:right;border-bottom:1px solid rgba(0,0,0,0.02);white-space:nowrap;color:var(--text-primary)}
+  .salary-table td:first-child,.salary-table td:nth-child(2){text-align:center}
+  .salary-table tbody tr:hover{background:rgba(0,0,0,0.02)}
+  .col-total{font-weight:600}
+  .col-real{font-weight:600}
+  .col-deduct{}
+  .year-sep td{background:#fff!important;color:var(--text-dim);font-size:.65rem;text-align:center!important;letter-spacing:.04em;padding:4px 6px;font-weight:600;border-bottom:1px solid rgba(0,0,0,.06)}
+  .salary-table .row-2026 td{background:rgba(0,0,0,.02)}
+
+  .salary-upload-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .salary-upload-btn{background:rgba(240,185,11,.1);border:1px solid rgba(240,185,11,.25);color:#b08500;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:.68rem;letter-spacing:.03em;transition:background .2s}
+  .salary-upload-btn:hover{background:rgba(240,185,11,.15)}
+  .salary-source{font-size:.7rem;color:var(--text-dim)}
+  #salaryFileInput{display:none}
+
+  /* Grid */
+  .grid-main{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+  /* Clock */
+  .card-clock::before{background:linear-gradient(90deg,var(--blue),var(--purple))}
+  .card-clock .card-title{color:var(--blue)}
+  .card-clock .card-title .dot{background:var(--blue);box-shadow:0 0 8px var(--blue-glow)}
+  .clock-display{text-align:center;padding:8px 0 4px}
+  .clock-time{font-size:2.4rem;font-weight:300;letter-spacing:.04em;font-variant-numeric:tabular-nums;font-family:"SF Mono","JetBrains Mono","Fira Code",monospace;color:#1a1f2e}
+  .clock-date{font-size:.8rem;color:var(--text-secondary);margin-top:4px;letter-spacing:.04em}
+  .clock-weekday{display:inline-block;background:rgba(77,138,240,.12);color:#2563eb;padding:2px 10px;border-radius:10px;font-size:.7rem;margin-top:6px}
+
+  /* Todo */
+  .card-todo::before{background:linear-gradient(90deg,var(--cyan),#00e0b0)}
+  .card-todo .card-title{color:var(--cyan)}
+  .card-todo .card-title .dot{background:var(--cyan);box-shadow:0 0 8px var(--cyan-glow)}
+  .todo-input-row{display:flex;gap:10px;margin-bottom:14px}
+  .todo-input-row input{flex:1;background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.06);border-radius:8px;padding:9px 14px;color:var(--text-primary);font-size:.9rem;outline:none;transition:border-color .2s}
+  .todo-input-row input:focus{border-color:var(--cyan)}
+  .todo-input-row input::placeholder{color:var(--text-dim)}
+  .todo-input-row button{background:linear-gradient(135deg,var(--cyan),#00b894);border:none;border-radius:8px;color:#0a0e17;font-weight:700;padding:9px 18px;cursor:pointer;font-size:.85rem;letter-spacing:.04em;transition:opacity .2s,transform .15s}
+  .todo-input-row button:hover{opacity:.85}
+  .todo-input-row button:active{transform:scale(.96)}
+  .todo-list{list-style:none;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+  .todo-list::-webkit-scrollbar{width:4px}
+  .todo-list::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.06);border-radius:2px}
+  .todo-list li{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(0,0,0,0.02);border-radius:8px;transition:background .2s}
+  .todo-list li:hover{background:rgba(0,0,0,0.04)}
+  .todo-list li .check{width:20px;height:20px;border:2px solid rgba(0,0,0,0.12);border-radius:5px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:.7rem;color:transparent}
+  .todo-list li.done .check{background:var(--cyan);border-color:var(--cyan);color:#0a0e17}
+  .todo-list li .text{flex:1;font-size:.9rem;transition:color .2s,text-decoration .2s}
+  .todo-list li.done .text{text-decoration:line-through;color:var(--text-dim)}
+  .todo-list li .del{width:24px;height:24px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;border-radius:4px;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:color .2s,background .2s;flex-shrink:0}
+  .todo-list li .del:hover{color:var(--red-soft);background:rgba(255,85,119,.1)}
+  .todo-empty{text-align:center;color:var(--text-dim);font-size:.82rem;padding:20px 0}
+
+  /* Links */
+  .card-links::before{background:linear-gradient(90deg,var(--pink),var(--purple))}
+  .card-links .card-title{color:var(--purple)}
+  .card-links .card-title .dot{background:var(--purple);box-shadow:0 0 8px var(--purple-glow)}
+  .links-grid{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+  .link-chip{display:flex;align-items:center;gap:8px;padding:10px 16px;background:rgba(0,0,0,0.02);border:1px solid rgba(0,0,0,0.06);border-radius:10px;cursor:pointer;transition:all .25s;text-decoration:none;color:var(--text-primary);font-size:.88rem;position:relative}
+  .link-chip:hover{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.1);transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.08)}
+  .link-chip .link-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.02em;text-shadow:0 1px 2px rgba(0,0,0,.15)}
+  .link-chip .link-del{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red-soft);color:#fff;border:none;font-size:.65rem;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1}
+  .link-chip:hover .link-del{display:flex}
+  .add-link-row{display:flex;gap:10px}
+  .add-link-row input{flex:1;background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.06);border-radius:8px;padding:8px 14px;color:var(--text-primary);font-size:.85rem;outline:none;min-width:0}
+  .add-link-row input:focus{border-color:var(--purple)}
+  .add-link-row input::placeholder{color:var(--text-dim);font-size:.8rem}
+  .add-link-row button{background:linear-gradient(135deg,var(--purple),#7c5ce7);border:none;border-radius:8px;color:#fff;font-weight:700;padding:8px 16px;cursor:pointer;font-size:.85rem;letter-spacing:.04em;transition:opacity .2s,transform .15s;flex-shrink:0}
+  .add-link-row button:hover{opacity:.85}
+  .add-link-row button:active{transform:scale(.96)}
+
+  /* ===== ima 知识库 Card ===== */
+  .card-ima::before{background:linear-gradient(90deg,#10b981,#059669)}
+  .card-ima .card-title{color:#10b981}
+  .card-ima .card-title .dot{background:#10b981;box-shadow:0 0 8px rgba(16,185,129,.25)}
+  .card-ima .card-title{margin-bottom:10px;position:relative}
+  .ima-kb-icon-link{position:absolute;right:30px;top:50%;transform:translateY(-50%);font-size:.85rem;text-decoration:none;opacity:.6;transition:opacity .2s}
+  .ima-kb-icon-link:hover{opacity:1}
+
+  /* ===== 体重日历 Card ===== */
+  .card-weight::before{background:linear-gradient(90deg,#fb7185,#f43f5e)}
+  .card-weight .card-title{color:#fb7185}
+  .card-weight .card-title .dot{background:#fb7185;box-shadow:0 0 8px rgba(251,113,133,.25)}
+  .weight-stats{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .weight-stat{flex:1;min-width:90px;background:rgba(251,113,133,.06);border:1px solid rgba(251,113,133,.15);border-radius:6px;padding:8px 6px;text-align:center}
+  .weight-stat .v{font-size:1rem;font-weight:700;color:#fb7185}
+  .weight-stat .l{font-size:.6rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+  .weight-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .weight-cal-title{font-size:.78rem;font-weight:600;color:var(--text-primary)}
+  .weight-cal-nav{display:flex;gap:4px}
+  .weight-cal-nav button{background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.06);color:var(--text-secondary);width:24px;height:24px;border-radius:5px;cursor:pointer;font-size:.7rem;transition:all .15s}
+  .weight-cal-nav button:hover{background:rgba(251,113,133,.12);border-color:rgba(251,113,133,.3);color:#fb7185}
+  .weight-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .weight-cal-weekday{text-align:center;font-size:.6rem;color:var(--text-dim);padding:4px 0;text-transform:uppercase;letter-spacing:.04em}
+  .weight-day{aspect-ratio:1/1;border-radius:5px;background:rgba(0,0,0,0.02);border:1px solid rgba(0,0,0,0.04);padding:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:.7rem;color:var(--text-secondary);position:relative;transition:all .15s}
+  .weight-day.empty{background:transparent;border-color:transparent;pointer-events:none}
+  .weight-day.today{border:2px solid #fb7185;background:rgba(251,113,133,.18);box-shadow:0 0 10px rgba(251,113,133,.4);animation:today-pulse 2s ease-in-out infinite}
+  .weight-day.today .wd{color:#fb7185}
+  .weight-day.has-data{background:rgba(251,113,133,.1);border-color:rgba(251,113,133,.25)}
+  .weight-day .wd{font-weight:600;color:var(--text-primary);font-size:.7rem;line-height:1}
+  .weight-day .ww{font-size:.55rem;color:#fb7185;font-weight:600;line-height:1.2;margin-top:1px}
+  .weight-day .wn{font-size:.48rem;color:var(--text-dim);line-height:1;margin-top:1px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  @keyframes today-pulse{0%,100%{box-shadow:0 0 8px rgba(251,113,133,.35)}50%{box-shadow:0 0 14px rgba(251,113,133,.7)}}
+  .weight-loading{text-align:center;color:var(--text-dim);font-size:.75rem;padding:20px 0}
+  .ima-sync-btn{position:absolute;right:0;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.85rem;padding:2px 6px;border-radius:4px;transition:all .2s;line-height:1}
+  .ima-sync-btn:hover{color:#10b981;background:rgba(16,185,129,.1)}
+  .ima-sync-btn.syncing{animation:spin 1s linear infinite;color:#10b981}
+  @keyframes spin{from{transform:translateY(-50%) rotate(0deg)}to{transform:translateY(-50%) rotate(360deg)}}
+  .ima-status-bar{font-size:.65rem;color:var(--text-dim);padding:4px 0 2px 0;letter-spacing:.02em;display:flex;align-items:center;gap:6px}
+  .ima-status-bar.ok{color:#10b981}
+  .ima-status-bar.syncing{color:var(--gold)}
+  .ima-status-bar.error{color:var(--red-soft)}
+  .ima-start-link{color:var(--gold);text-decoration:underline;cursor:pointer;font-weight:600}
+  .ima-start-link:hover{color:#ff8c00}
+  .ima-status-bar .sync-dot{width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block}
+  .ima-folder{width:100%;margin-top:4px;padding:4px 8px;background:rgba(0,0,0,.15);border-radius:4px;font-size:.66rem;color:var(--text-dim);display:flex;align-items:center;gap:5px}
+  .ima-kb-list{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .ima-kb-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;text-decoration:none;color:var(--text-primary);font-size:.78rem;transition:all .2s}
+  .ima-kb-chip:hover{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.4);transform:translateY(-1px)}
+  .ima-kb-item{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:rgba(0,0,0,0.02);border:1px solid rgba(0,0,0,0.04);border-radius:6px;font-size:.74rem;color:var(--text-secondary);cursor:default}
+  .ima-kb-note{cursor:pointer!important;border-color:rgba(0,212,170,.25)!important}
+  .ima-kb-note:hover{background:rgba(0,212,170,.1)!important;border-color:var(--cyan)!important}
+  .ima-note-viewer{margin:6px 0 8px 16px;padding:10px 14px;background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,0.04);border-radius:8px;max-height:300px;overflow-y:auto}
+  .ima-note-viewer::-webkit-scrollbar{width:3px}
+  .ima-note-viewer::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.06);border-radius:2px}
+  .ima-note-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,0.04);font-weight:600;font-size:.82rem;color:var(--text-primary)}
+  .ima-note-header button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.1rem;padding:0 4px;line-height:1}
+  .ima-note-header button:hover{color:var(--red-soft)}
+  .ima-note-content{font-size:.78rem;color:var(--text-secondary);line-height:1.7;word-break:break-word;max-width:100%}
+  .ima-note-content .ima-h1{font-size:1.3rem;font-weight:700;color:#10b981;margin:14px 0 8px;border-bottom:1px solid rgba(16,185,129,.3);padding-bottom:4px}
+  .ima-note-content .ima-h2{font-size:1.1rem;font-weight:700;color:var(--text-primary);margin:12px 0 6px}
+  .ima-note-content .ima-h3{font-size:.95rem;font-weight:600;color:var(--text-primary);margin:10px 0 4px}
+  .ima-note-content .ima-p{margin:6px 0}
+  .ima-note-content .ima-hr{border:0;border-top:1px dashed rgba(0,0,0,0.06);margin:12px 0}
+  .ima-note-content .ima-bq{border-left:3px solid var(--cyan);padding:6px 12px;margin:8px 0;background:rgba(0,212,170,.05);border-radius:0 6px 6px 0;color:var(--text-secondary)}
+  .ima-note-content .ima-pre{background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,0.04);border-radius:6px;padding:8px 12px;overflow-x:auto;margin:8px 0;font-family:"SF Mono",monospace;font-size:.72rem}
+  .ima-note-content .ima-code-inline{background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px;font-family:"SF Mono",monospace;font-size:.85em;color:var(--cyan)}
+  .ima-note-content .ima-img{max-width:100%;border-radius:6px;margin:8px 0}
+  .ima-note-content .ima-link{color:var(--blue);text-decoration:underline}
+  .ima-note-content .ima-link:hover{color:var(--cyan)}
+  .ima-note-content mark{background:rgba(240,185,11,.35);color:#5a4500;padding:0 2px;border-radius:2px}
+  .ima-kb-chip .kb-icon{font-size:.95rem}
+  .ima-kb-chip .kb-count{font-size:.68rem;color:var(--text-dim)}
+  .ima-api-toggle{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.7rem;padding:2px 6px;border-radius:4px;margin-top:8px;transition:color .2s}
+  .ima-api-toggle:hover{color:var(--text-secondary)}
+  .ima-api-row{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+  .ima-api-row.show{display:flex}
+  .ima-api-row input{background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.06);border-radius:6px;padding:5px 8px;color:var(--text-primary);font-size:.72rem;outline:none;min-width:0;flex:1}
+  .ima-api-row input:focus{border-color:#10b981}
+  .ima-api-row input::placeholder{color:var(--text-dim);font-size:.68rem}
+  .ima-api-row button{background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:6px;color:#fff;font-weight:600;padding:5px 10px;cursor:pointer;font-size:.72rem;letter-spacing:.04em;transition:opacity .2s}
+  .ima-api-row button:hover{opacity:.85}
+  .ima-api-status{font-size:.68rem;padding:2px 8px;border-radius:4px;margin-left:4px}
+  .ima-api-status.ok{background:rgba(16,185,129,.15);color:#10b981}
+  .ima-api-status.pending{background:rgba(240,185,11,.1);color:var(--gold)}
+
+  @media(max-width:768px){
+    body{padding:14px}
+    .grid-main{grid-template-columns:1fr}
+    .chart-row{flex-direction:column}
+    .clock-time{font-size:2.4rem}
+    .salary-stat .stat-val{font-size:1.15rem}
+    .annual-table{font-size:.72rem}
+  }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+
+  <header class="header">
+    <div><div class="logo">YOYO DASHBOARD</div></div>
+    <div class="tagline">个人工作台</div>
+  </header>
+
+  <!-- ==================== 顶部双列：左(ima+时钟) + 右(薪酬) ==================== -->
+  <div class="grid-main" style="align-items:start;">
+    <!-- 左列：ima + 体重 + 时钟 -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="card card-ima">
+        <div class="card-title">
+          <span class="dot"></span>ima 知识库
+          <a class="ima-kb-icon-link" id="imaKbIconLink" href="https://ima.qq.com" target="_blank" rel="noopener" title="在 ima 中打开">🔗</a>
+          <button class="ima-sync-btn" id="imaSyncBtn" title="同步知识库">🔄</button>
+        </div>
+        <div class="ima-kb-list" id="imaKbList"></div>
+        <div class="ima-note-viewer" id="imaNoteViewer" style="display:none;">
+          <div class="ima-note-header">
+            <span id="imaNoteTitle"></span>
+            <button id="imaNoteClose">&times;</button>
+          </div>
+          <div class="ima-note-content" id="imaNoteContent"></div>
+        </div>
+        <div class="ima-status-bar" id="imaStatusBar">⚡ 未同步</div>
+        <button class="ima-api-toggle" id="imaApiToggle">⚙️ 设置</button>
+        <div class="ima-api-row" id="imaApiRow">
+          <input type="text" id="imaClientId" placeholder="Client ID">
+          <input type="text" id="imaApiKey" placeholder="API Key">
+          <button id="imaConnect">连接</button>
+          <span class="ima-api-status ok" id="imaStatus">已配置</span>
+        </div>
+      </div>
+
+      <!-- 体重管理 -->
+      <div class="card card-weight">
+        <div class="card-title-row">
+          <div class="card-title"><span class="dot"></span>体重管理</div>
+          <div class="weight-cal-nav">
+            <button id="weightPrev" title="上月">‹</button>
+            <button id="weightToday" title="回到本月" style="width:auto;padding:0 8px;font-size:.62rem;">今天</button>
+            <button id="weightNext" title="下月">›</button>
+          </div>
+        </div>
+        <div class="weight-stats" id="weightStats"></div>
+        <div class="weight-cal-title" id="weightCalTitle" style="margin-bottom:6px;"></div>
+        <div class="weight-cal-grid" id="weightCalWeekdays">
+          <div class="weight-cal-weekday">日</div><div class="weight-cal-weekday">一</div><div class="weight-cal-weekday">二</div>
+          <div class="weight-cal-weekday">三</div><div class="weight-cal-weekday">四</div><div class="weight-cal-weekday">五</div>
+          <div class="weight-cal-weekday">六</div>
+        </div>
+        <div class="weight-cal-grid" id="weightCalDays"></div>
+        <div class="weight-loading" id="weightLoading" style="display:none;">正在加载...</div>
+      </div>
+
+      <!-- 时钟 -->
+      <div class="card card-clock">
+        <div class="card-title"><span class="dot"></span>时钟日历</div>
+        <div class="clock-display">
+          <div class="clock-time" id="clockTime">00:00:00</div>
+          <div class="clock-date" id="clockDate"></div>
+          <div class="clock-weekday" id="clockWeekday"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右列：薪酬总览 -->
+    <div class="card card-salary">
+      <div class="card-title-row">
+        <div class="card-title"><span class="dot"></span>薪酬总览</div>
+        <div class="year-tabs" id="yearTabs"></div>
+      </div>
+      <div class="salary-top-row" id="salaryStats"></div>
+      <div class="chart-row">
+        <div class="chart-box">
+          <div class="chart-title">📊 月度应发 / 实发趋势</div>
+          <canvas id="salaryChart"></canvas>
+        </div>
+        <div class="pie-box">
+          <div class="chart-title">🥧 年度收入构成</div>
+          <canvas id="salaryPie"></canvas>
+        </div>
+      </div>
+      <div class="annual-table-wrap" style="margin-bottom:16px;">
+        <table class="annual-table">
+          <thead><tr><th>年份</th><th>应发合计</th><th>实发合计</th><th>扣款合计</th><th>扣除率</th><th>应发同比</th><th>实发同比</th></tr></thead>
+          <tbody id="annualTableBody"></tbody>
+        </table>
+      </div>
+      <div class="salary-table-wrap">
+        <table class="salary-table">
+          <thead><tr><th>年月</th><th>基本工资</th><th>津贴</th><th>奖金</th><th>加班费</th><th>年终奖</th><th>其他</th><th>应发合计</th><th>实发</th><th>扣款</th></tr></thead>
+          <tbody id="salaryTableBody"></tbody>
+        </table>
+      </div>
+      <div class="salary-upload-row">
+        <button class="salary-upload-btn" id="salaryUploadBtn">📂 更新 Excel</button>
+        <span class="salary-source">数据来源: 工资统计分析.xlsx</span>
+        <input type="file" id="salaryFileInput" accept=".xlsx,.xls">
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 常用链接 ==================== -->
+  <div class="card card-links">
+    <div class="card-title"><span class="dot"></span>常用链接</div>
+    <div class="links-grid" id="linksGrid"></div>
+    <div class="add-link-row">
+      <input type="text" id="linkNameInput" placeholder="名称" maxlength="20" style="flex:0.8;">
+      <input type="url" id="linkUrlInput" placeholder="https://..." style="flex:1.2;">
+      <button id="linkAdd">+ 添加</button>
+    </div>
+  </div>
+
+  <!-- ==================== 待办 ==================== -->
+  <div class="card card-todo">
+    <div class="card-title"><span class="dot"></span>待办事项</div>
+    <div class="todo-input-row">
+      <input type="text" id="todoInput" placeholder="添加新任务..." maxlength="80">
+      <button id="todoAdd">+ 添加</button>
+    </div>
+    <ul class="todo-list" id="todoList"></ul>
+    <div class="todo-empty" id="todoEmpty" style="display:none;">暂无待办，享受清闲 ✨</div>
+  </div>
+
+</div>
+
+<script>
+// ==================== 从 工资统计分析.xlsx 提取的完整数据 ====================
+// Sheet "月度" — 2021-07 至 2026-05
+const EMBEDDED_MONTHLY = [
+  {month:"2021-07",base:9750,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:9750,netPay:3837.71,deduct:5912.29},
+  {month:"2021-08",base:13000,allowance:0,bonus:0,overtime:3978.45,annual:0,other:0,shouldPay:16978.45,netPay:13898.47,deduct:3079.98},
+  {month:"2021-09",base:13000,allowance:0,bonus:0,overtime:4034.48,annual:0,other:0,shouldPay:17034.48,netPay:13791.92,deduct:3242.56},
+  {month:"2021-10",base:13000,allowance:0,bonus:0,overtime:4314.66,annual:0,other:0,shouldPay:17314.66,netPay:14071.23,deduct:3243.43},
+  {month:"2021-11",base:13000,allowance:0,bonus:0,overtime:5659.48,annual:0,other:0,shouldPay:18659.48,netPay:15351.96,deduct:3307.52},
+  {month:"2021-12",base:13000,allowance:0,bonus:0,overtime:4762.93,annual:0,other:0,shouldPay:17762.93,netPay:14450.79,deduct:3312.14},
+  {month:"2022-01",base:13000,allowance:0,bonus:0,overtime:0,annual:19615.12,other:0,shouldPay:32615.12,netPay:28831.32,deduct:3783.80},
+  {month:"2022-02",base:13000,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:13000,netPay:9823.81,deduct:3176.19},
+  {month:"2022-03",base:13000,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:13000,netPay:9842.66,deduct:3157.34},
+  {month:"2022-04",base:19000,allowance:0,bonus:22442.17,overtime:0,annual:0,other:0,shouldPay:41442.17,netPay:35864.78,deduct:5577.39},
+  {month:"2022-05",base:19000,allowance:0,bonus:700,overtime:0,annual:0,other:0,shouldPay:19700,netPay:16756.15,deduct:2943.85},
+  {month:"2022-06",base:19000,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:19000,netPay:16040.39,deduct:2959.61},
+  {month:"2022-07",base:19000,allowance:0,bonus:21980.92,overtime:0,annual:0,other:4000,shouldPay:44980.92,netPay:35766.65,deduct:9214.27},
+  {month:"2022-08",base:19000,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:19000,netPay:14354.96,deduct:4645.04},
+  {month:"2022-09",base:19000,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:19000,netPay:14876.10,deduct:4123.90},
+  {month:"2022-10",base:21470,allowance:0,bonus:21839.93,overtime:0,annual:0,other:0,shouldPay:43309.93,netPay:36591.30,deduct:6718.63},
+  {month:"2022-11",base:21470,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:21470,netPay:17001.40,deduct:4468.60},
+  {month:"2022-12",base:21470,allowance:0,bonus:0,overtime:0,annual:21470,other:0,shouldPay:42940,netPay:33264.88,deduct:9675.12},
+  {month:"2023-01",base:21470,allowance:0,bonus:33543.99,overtime:0,annual:0,other:-987.13,shouldPay:54026.86,netPay:46205.70,deduct:7821.16},
+  {month:"2023-02",base:21470,allowance:0,bonus:39357.30,overtime:0,annual:0,other:2134.13,shouldPay:62961.43,netPay:52684.67,deduct:10276.76},
+  {month:"2023-03",base:21470,allowance:0,bonus:0,overtime:0,annual:0,other:1147,shouldPay:22617,netPay:17009.83,deduct:5607.17},
+  {month:"2023-04",base:21470,allowance:0,bonus:19778.20,overtime:0,annual:0,other:0,shouldPay:41248.20,netPay:33727.34,deduct:7520.86},
+  {month:"2023-05",base:21470,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:21470,netPay:14825.13,deduct:6644.87},
+  {month:"2023-06",base:21470,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:21470,netPay:14787.45,deduct:6682.55},
+  {month:"2023-07",base:21470,allowance:0,bonus:24468.81,overtime:0,annual:0,other:0,shouldPay:45938.81,netPay:35382.56,deduct:10556.25},
+  {month:"2023-08",base:21470,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:21470,netPay:13906.55,deduct:7563.45},
+  {month:"2023-09",base:21470,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:21470,netPay:13343.63,deduct:8126.37},
+  {month:"2023-10",base:21470,allowance:0,bonus:27936.05,overtime:0,annual:0,other:0,shouldPay:49406.05,netPay:37322.72,deduct:12083.33},
+  {month:"2023-11",base:21470,allowance:0,bonus:200,overtime:0,annual:0,other:0,shouldPay:21670,netPay:13476.94,deduct:8193.06},
+  {month:"2023-12",base:21470,allowance:0,bonus:100,overtime:0,annual:0,other:0,shouldPay:21570,netPay:15145.22,deduct:6424.78},
+  {month:"2024-01",base:21470,allowance:0,bonus:35655.88,overtime:0,annual:0,other:0,shouldPay:57125.88,netPay:48288.32,deduct:8837.56},
+  {month:"2024-02",base:21470,allowance:0,bonus:2000,overtime:0,annual:68867.45,other:0,shouldPay:92337.45,netPay:78419.49,deduct:13917.96},
+  {month:"2024-03",base:21470,allowance:0,bonus:0,overtime:0,annual:0,other:0,shouldPay:21470,netPay:14437.35,deduct:7032.65},
+  {month:"2024-04",base:23470,allowance:25.81,bonus:26327.66,overtime:0,annual:0,other:0,shouldPay:49823.47,netPay:39982.62,deduct:9840.85},
+  {month:"2024-05",base:23470,allowance:660,bonus:0,overtime:0,annual:0,other:0,shouldPay:24130,netPay:17352.62,deduct:6777.38},
+  {month:"2024-06",base:23470,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:24270,netPay:17176.09,deduct:7093.91},
+  {month:"2024-07",base:23470,allowance:800,bonus:25850.67,overtime:0,annual:0,other:0,shouldPay:50120.67,netPay:36772.64,deduct:13348.03},
+  {month:"2024-08",base:23470,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:24270,netPay:14076.10,deduct:10193.90},
+  {month:"2024-09",base:23470,allowance:760,bonus:0,overtime:0,annual:0,other:0,shouldPay:24230,netPay:15661.55,deduct:8568.45},
+  {month:"2024-10",base:23470,allowance:760,bonus:25019.40,overtime:0,annual:0,other:0,shouldPay:49249.40,netPay:35066.10,deduct:14183.30},
+  {month:"2024-11",base:23470,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:24270,netPay:15780.82,deduct:8489.18},
+  {month:"2024-12",base:23470,allowance:800,bonus:8000,overtime:0,annual:0,other:0,shouldPay:32270,netPay:25831.75,deduct:6438.25},
+  {month:"2025-01",base:23470,allowance:800,bonus:39062.05,overtime:0,annual:0,other:0,shouldPay:63332.05,netPay:53300.95,deduct:10031.10},
+  {month:"2025-02",base:26400,allowance:760,bonus:0,overtime:3641.38,annual:88162.39,other:2397.27,shouldPay:121361.04,netPay:104720.36,deduct:16640.68},
+  {month:"2025-03",base:26400,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:27200,netPay:19765.43,deduct:7434.57},
+  {month:"2025-04",base:28400,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:29200,netPay:21565.42,deduct:7634.58},
+  {month:"2025-05",base:28400,allowance:800,bonus:0,overtime:3917.24,annual:0,other:0,shouldPay:33117.24,netPay:24135.54,deduct:8981.70},
+  {month:"2025-06",base:28400,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:29200,netPay:19724.82,deduct:9475.18},
+  {month:"2025-07",base:28400,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:29200,netPay:19653.62,deduct:9546.38},
+  {month:"2025-08",base:28400,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:29200,netPay:19155.23,deduct:10044.77},
+  {month:"2025-09",base:28400,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:29200,netPay:19618.09,deduct:9581.91},
+  {month:"2025-10",base:30858,allowance:800,bonus:0,overtime:12768.83,annual:0,other:0,shouldPay:44426.83,netPay:31479.81,deduct:12947.02},
+  {month:"2025-11",base:30858,allowance:800,bonus:5000,overtime:0,annual:0,other:0,shouldPay:36658,netPay:25584.50,deduct:11073.50},
+  {month:"2025-12",base:30858,allowance:800,bonus:0,overtime:0,annual:0,other:0,shouldPay:31658,netPay:25108.70,deduct:6549.30},
+  {month:"2026-01",base:30858,allowance:720,bonus:15000,overtime:0,annual:0,other:0,shouldPay:46578,netPay:38154.42,deduct:8423.58},
+  {month:"2026-02",base:30858,allowance:760,bonus:32500.80,overtime:0,annual:384626,other:0,shouldPay:448744.80,netPay:365425.81,deduct:83318.99},
+  {month:"2026-03",base:30858,allowance:760,bonus:0,overtime:0,annual:0,other:0,shouldPay:31618,netPay:21552.49,deduct:10065.51},
+  {month:"2026-04",base:37331,allowance:740,bonus:1500,overtime:0,annual:0,other:0,shouldPay:39571,netPay:32784.31,deduct:6786.69},
+  {month:"2026-05",base:37331,allowance:800,bonus:1900,overtime:0,annual:0,other:0,shouldPay:40031,netPay:31708.21,deduct:8322.79}
+];
+
+// Sheet "年度"
+const EMBEDDED_ANNUAL = [
+  {year:2021,shouldPay:97500,netPay:75402.08,deduct:22097.92,deductRate:0.2266,shouldYoY:"-",netYoY:"-"},
+  {year:2022,shouldPay:329458.14,netPay:269014.40,deduct:60443.74,deductRate:0.1835,shouldYoY:2.3791,netYoY:2.5677},
+  {year:2023,shouldPay:405318.35,netPay:307817.74,deduct:97500.61,deductRate:0.2406,shouldYoY:0.2303,netYoY:0.1442},
+  {year:2024,shouldPay:473566.87,netPay:358845.45,deduct:114721.42,deductRate:0.2422,shouldYoY:0.1684,netYoY:0.1658},
+  {year:2025,shouldPay:503753.16,netPay:383812.47,deduct:119940.69,deductRate:0.2381,shouldYoY:0.0637,netYoY:0.0696},
+  {year:2026,shouldPay:606542.80,netPay:489625.24,deduct:116917.56,deductRate:0.1928,shouldYoY:0.2040,netYoY:0.2757,label:"2026（累计）"}
+];
+
+let salaryData = [...EMBEDDED_MONTHLY];
+let annualData = [...EMBEDDED_ANNUAL];
+
+// 从 ima API 实时拉取的知识库数据
+const EMBEDDED_IMA = {
+  knowledge_bases: [{
+    id: "vYohafowouLT7_jr8mKAHbfdkI7AiYBZKMed5NKpagA=",
+    name: "有有的知识库",
+    content_count: 3,
+    description: "",
+    cover_url: "https://ima-media-pub-prod.image.myqcloud.com/1/pub/kbcover/kb_default_cover.png",
+    type: "个人知识库"
+  }],
+  notes: {
+    "7472318783693881": {title:"设计场景-项目管理", content:"设计场景-项目管理设计场景的项目管理，两条线，正向，以设计流程中关键节点为主线，从design kickoff 开始，到architecture, formal design, 到dbr等全链路。每个节点间是由dcm,design check manual定义的设计环节任务，然后节点上有各类交付件和check point。反向，由issue driven.简单地说从验证和测试两端，检测出来的电路问题，都要重新回归到designer处，由他们来debug，并解决。而每个重要的issue都应该新增在dcm里，让其他产品去check检查是否存在同样的问题。"},
+    "7469190575304454": {title:"AIX MBO Setting", content:"AIX MBO Setting\n\nBusiness KPI：测试场景-Easy Analysis Platform上线，并取得良好运营指标 - 30%\n基本目标：完成EA分析平台正式上线，全面覆盖PTE全体工程师用户。实现工程师日常业务全流程线上闭环，覆盖问题上报、深度分析、根因定位、协同处理、整改追踪全链路，沉淀可复用业务价值。上线即标注机制，依托平台标准化数据沉淀，搭建测试场景专属知识库。达成基础运营指标：AI月处理案例500+、平台日活超500人，单条FA故障分析耗时缩短30%。\n\n挑战目标：扩容平台使用范围，实现PTE、TSA全员用户全覆盖。利用平台AI处理能力，达成进阶运营指标：AI月处理案例700+、平台日活超700人，实现平台规模化落地应用。\n\n关键举措：完成系统CLI化、工具技能化改造，对平台能力进行模块化封装，将各类工具转化为可调用技能，支持中央智能体、测试智能体调用，兼容Skills、CLI等多种调用形态，适配生态复用。重点搭建高精度测试知识库，依托平台沉淀业务数据，提升故障分析的精准度和整体效率。打造统一规范、交互清晰的GUI可视化界面，统一业务操作标准，保障信息传递高效准确。基于Workspace搭建统一中央访问入口，简化员工接入方式，提升使用便捷性。搭建实时数据运营监控体系，依托真实运营数据，持续驱动平台功能迭代与体验优化。\n\nQ3 & Q4工作重点：Q3 平台上线与基础落地阶段完成EA平台版本开发、联调与灰度测试，实现平台正式上线，搭建标准化GUI界面与Workspace统一访问入口。完成业务流程线上化改造，打通问题上报、分析、协同、整改追踪全闭环链路，落地数据标注机制，初步搭建测试知识库。完成平台能力模块化、CLI和技能化改造，支持中央智能体、测试智能体调用，完成基础功能生态适配。全面开放PTE用户使用，完成基础推广落地，启动平台运营数据监控，保障基础日活与AI案例处理量稳步达标。Q4 运营提效与规模化迭代阶段持续完善测试知识库，优化AI分析模型，提升AI案例处理数量与故障分析精准度，缩短FA分析耗时。基于运营数据迭代优化平台功能与交互体验，解决用户使用痛点，提升整体使用效率。推进用户范围扩容，完成TSA用户全覆盖，实现平台规模化落地。复盘全年运营指标，固化平台流程、知识库与生态调用能力，形成可长期复用的业务分析体系。\n\nBusiness KPI：测试场景-iTest tool-kit 上线，并取得良好运营指标 - 15%\n基本目标：完成Condition Table全量线上替换，实现PTE全员替换Excel，完成编辑流程统一化、线上化、智能化。完成iTest核心模块开发，覆盖Fuse Control Table、Test Methods、Test Management、DFT、EFA Tools全功能模块。上线AI Skills自然语言编辑能力，支持通过自然语言操作Condition Table，大幅降低人工耗时。实现基础提效目标：110人日活，Condition Table日均业务耗时从2.66小时降至0.5小时，显著减少人力浪费。\n\n挑战目标：MRB = 0，全年由测试程序问题导致的MRB数量归零，全面解决传统离线测试数据混乱、版本不统一、操作繁琐等长期测试顽疾，降低芯片测试直接与间接导致的MRB损失。搭建完善的PTE Skill开放生态，实现iTest与EA系统深度打通、能力互通。实现一键式协同处理：用户通过单一指令即可调用iTest技能，自动处理EA平台故障案例，形成AI闭环分析能力。\n\n关键举措：搭建统一规范、信息清晰的GUI操作界面，统一测试业务操作标准，解决线下表格混乱、口径不一致问题。打通Workspace流量入口，实现员工便捷快速访问，提升平台普及率与使用率。推进iTest工具和功能模块化封装，将平台各类测试工具沉淀为通用Skills，支持CLI、智能体调用。搭建平台实时运营监控体系，基于真实使用数据、效率数据持续迭代功能，优化用户体验与测试流程。\n\nQ3 & Q4工作重点：Q3 平台开发与基础落地阶段完成iTest整体界面开发与标准化GUI搭建，统一全平台操作规范。完成Condition Table线上功能开发、灰度验证，实现基础线上编辑能力，启动替代传统Excel工作流。完成Fuse Control Table、Test Methods、Test Management、DFT、EFA Tools核心模块开发与联调。打通Workspace及官网访问入口，完成基础环境部署，上线AI自然语言编辑基础能力。Q4 能力迭代与生态打通阶段全面推行Condition Table线上化，完成PTE全员替换Excel落地，达成日均耗时提效指标。完成iTest各类测试能力Skill化封装，完善平台可调用技能生态。打通iTest与EA系统生态联动，实现单指令跨平台调用、自动处理EA案例业务。上线运营数据监控平台，基于用户使用数据持续优化功能，彻底优化传统测试业务顽疾，固化标准化测试流程。\n\nBusiness KPI：测试场景-PTE Agent - 25%\n基本目标：聚焦PTE测试场景中高重复、强SOP、模式固定、日常高频的工作，重点围绕量产产线Hold处置、TTR测试成本优化、Program Release版本验证三大确定性场景，打造PTE专属AI Agent。将工程师标准化、流程化的重复分析工作AI化、工具化，大幅降低人工重复工作量，统一分析标准，提升量产与研发测试问题处置效率。完成PTE Agent场景梳理与能力落地，聚焦三大核心固定流程场景：产线Monitor异常Lot自动Hold处置、TTR测试精简分析、Program Release上线验证分析。处置500+ lots/month，单个lot处置时间1hrs→5min，实现量产日常简单问题AI自动处置，针对SBL、SYL、SFL触发的产线Hold异常Lot，依托标准化SOP完成AI辅助分析与处置建议输出，替代大量人工常规研判工作。实现10+ TTR AI分析推荐/month。完成TTR测试精简、良率分析、成本优化等固定套路流程的Skill化、CI化改造，实现标准化分析流程复用。实现20+ Program Release标准化验证AI辅助分析/month，实现AI one wafer & 3 lots 验证流程。\n\n挑战目标：实现量产Hold问题规模化AI全自动闭环处置：达成每月AI自动处置异常Lot 700+批次，全覆盖SBL、SYL、SFL常规产线风险场景；将单Lot人工处置时长从1小时压缩至3分钟，常规简单问题AI自动处置覆盖率超90%，基本替代人工常规研判，大幅削减量产运维重复性工时。建成常态化TTR智能优化机制：完成TTR测试精简、成本优化全流程Skill化、CI化常态化落地，每月稳定产出15+条高质量AI分析优化建议，精准支撑测试迭代降本，形成可自动迭代的测试成本优化体系。实现Program Release版本验证全流程智能化落地：每月完成25+次版本上线AI自动化验证，全覆盖One Wafer & 3 Lots touchdown标准流程，实现版本发布验证标准化、无人化、可追溯，有效规避人为漏测、误判风险。建成可复用的PTE测试AI知识库与Agent体系：沉淀全场景测试SOP与历史故障根因，实现同类问题智能复用、快速复盘；完成PTE Agent全生态打通，支持跨平台一键调用，实现三大核心场景规模化、常态化智能化运转，形成可对外复用的测试AI标准化解决方案。\n\n关键举措：搭建标准化、可复用的PTE测试Agent基础框架，统一测试场景AI能力调度、流程调用、结果输出规范，支撑产线Hold处置、TTR分析、Program Release验证三大核心场景能力快速落地与迭代。专项搭建适配测试Agent运行的专属知识库，批量沉淀量产SOP、常规故障根因、标准化分析套路、版本验证规范等核心数据，为AI智能研判、自动分析、问题复盘提供精准数据支撑。基于自研Agent框架，完成三大高频测试场景能力Skill化、CI化封装，打通平台生态调用链路，实现能力可复用、可一键调度、可规模化落地。持续迭代优化Agent推理逻辑与知识库内容，不断提升AI分析准确率、问题覆盖率，实现简单场景全自动闭环处置、复杂场景高效辅助分析。\n\nQ3 & Q4工作重点：Q3 场景梳理与基础能力落地完成PTE Agent核心场景确权，锁定产线Hold处置、TTR分析、Program Release三大落地场景，淘汰高不确定、难落地场景。全面梳理三类场景标准SOP、固定分析套路、历史常规Case，完成流程拆解与AI适配方案设计。完成产线Monitor异常Lot Hold处置AI基础能力开发，实现常规问题AI辅助研判与处置建议输出。完成TTR、Program Release固定分析流程的Skill化改造，上线基础AI辅助分析功能。Q4 能力迭代与规模化落地迭代优化PTE Agent分析逻辑，提升常规量产问题AI识别准确率，沉淀同类问题根因知识库。打通平台生态调用能力，实现三大场景AI分析技能可被生态一键调用，提升使用便捷性。规模化落地推广，覆盖日常量产Hold处置、月度TTR优化、版本Release验证全场景，量化人工提效成果。完成场景能力复盘固化，形成PTE测试AI标准化处置体系，支撑后续更多测试场景智能化迭代。\n\nBusiness KPI：设计场景-通用研发管理 - 20%\n基本目标：搭建通用研发管理平台，覆盖DE-DDR、DE-LP、TSA等核心业务部门，打通日常办公、项目流程、EDA研发、问题闭环全链路数据节点。构建L2级研发过程数据体系与知识管理能力，同时面向PDC管理层打造可视化、有体感的AI智能应用，实现研发过程可管、数据可查、人力可控、知识可沉淀。完成通用研发管理平台规划与上线，覆盖多业务部门，打通日报、周报、会议纪要、项目管控全流程信息节点，落地DCM checklist、设计签核等通用流程能力。落地PDC管理层AI智能应用能力，上线人力基线分析、Roadmap人力匹配、行业动态智能收集与洞察Skills，实现管理决策数字化、智能化。落地DFMEA、设计检查手册、问题追溯、EDA设计签核四大核心场景能力，完成研发L2级过程数据采集与沉淀。\n\n挑战目标：落地研发正向&反向流程闭环：串联项目关键节点、交付件、EDA环境数据；统一收录设计、测试各类问题，搭建专属Issue Debug追溯平台。搭建标准化工作关联体系：通过软标签关联日报工作与对应项目，打通XinPLM工时填报、团队人力分布数据，实现日常工作、工时、人力的统一管理。\n\n关键举措：深耕研发业务场景，针对设计类高门槛业务，依托AI产品经理深度吃透研发流程、设计规范与业务痛点，保障产品设计贴合真实落地需求。聚焦管理侧价值落地，打造高体感的AI管理应用与产品，推动PDC管理层AI数字化转型，争取更多管理资源与行政支持，助力项目规模化落地。重构升级日报系统，依托软标签能力实现日报内容精准归属对应项目，串联打通日报工作内容、团队人力分布、项目工时数据，实现人力精细化、可视化管理。开展全业务线调研与产品设计，对齐DDR、LP、TSA多部门研发流程需求，落地DCM、Checklist、设计签核等通用标准化流程平台能力。\n\nQ3 & Q4工作重点：Q3 调研设计与基础能力落地完成DDR、LP、TSA核心部门业务调研，梳理研发流程、会议、日报周报、项目管控、DCM流程等核心需求，输出完整产品方案。完成通用研发管理平台基础框架搭建，上线日报、周报、会议纪要、项目流程管控基础功能。落地软标签关联机制，实现日报工作与项目绑定，打通XinPLM工时、团队人力分布数据链路。研发PDC管理层AI应用能力，上线人力基线分析、Roadmap人力匹配、行业动态洞察等AI Skills。Q4 体系闭环与AI能力落地完善项目正向、反向双链路管控，实现项目节点、交付件、EDA数据、设计&测试Issue全串联闭环。实现L2级研发数据完整沉淀，落地设计场景知识管理系统。完成DFMEA、Checklist、设计签核、Issue Debug四大场景基础功能开发，初步实现L2过程数据采集。全量落地通用研发管理流程，完成多部门规模化试用，固化研发治理标准与知识资产，完成年度目标验收。\n\nLearning Item：电路设计和测试领域AI人才培养 - 10%\n基本目标：培养5名以上AI高潜质员工，围绕部门AI数字化业务，针对社招在岗员工、PDC跨部门NCG新人，开展体系化AI培训与实战赋能，批量培养具备AI业务思维的复合型研发测试人才。参与搭建PDC设计&测试场景AI培训体系，完成在岗员工轮训与PDC新人AI赋能，落地实战课题，实现全员会用AI工具、能解决基础业务问题。\n\n挑战目标：培养7名以上AI高潜质员工，沉淀可复用的AI人才培养课程与实战体系，孵化核心AI业务骨干，形成人人懂AI、用AI的团队数字化氛围，支撑部门长期AI迭代。\n\n关键举措：针对社招员工开展业务AI实战培训，结合平台落地案例提升AI落地能力。面向PDC新人开展AI通识赋能，植入数字化、智能化业务思维。搭建场景化课程与实战结业机制，以真实业务课题验收培养成果。\n\nQ3 & Q4工作重点：Q3搭建标准化培训课件，启动在岗员工与NCG新人AI培训，落地基础实战课题。Q4深化高阶实战培养，复盘筛选潜力人才，固化长期可复用的AI人才培养体系。\n\nBonus Item：AI测试向量自动生成（Test Pattern Auto Generation）- 2026年以前期研究为主 - 10%\n基本目标：联合清华大学、精智达国产机台，敲定AI自动生成测试代码的技术方案，完成可行性验证。打通AI生成、格式适配、机台加载使用全流程，输出代码可直接用于量产测试，Program Check无异常。实现80%基础测试模块AI自动生成，替代人工编写，各项指标满足量产标准。落地至少一个实际产品项目，完成FSO测试代码试点验证，运行稳定可用。\n\n挑战目标：联合清华攻克复杂测试场景的测试代码自动生成难题。整体测试代码开发效率提升40%以上，FSO测试代码验证周期缩短30%。落地标准化AI测试代码生成工具，适配精智达国产机台，支持多项目复用、跨平台适配。\n\n关键举措：聚焦国产测试生态，依托清华&精智达联合实验室，集中资源完成国产机台适配与方案落地。推进测试代码技术转型，从传统爱得万ATL专属语言转为通用类C语言，降低AI生成难度，加速AI技术落地应用。搭建完善、可落地的AI测试代码自动生成平台，实现代码快速生成、自动校验，支持跨产品、跨测试平台复用。重点攻坚测试代码地址转换核心技术难点，梳理各类场景地址映射规则，通过算法优化+规则库沉淀解决适配难题，保障AI生成代码准确可用。\n\nQ3 & Q4工作重点：Q3 技术方案确认阶段确认测试PatternAI生成技术方案，完成内部评审与资源对齐。对接清华、精智达联合团队，明确技术迭代方向，敲定ATL转类C语言改造方案。Q4 初期研究阶段梳理测试代码地址转换规则，攻克核心技术难点，搭建基础规则库。开发基础AI生成工具与校验功能，完成基础模块代码生成与适配验证。"}
+  },
+  contents: {
+    "vYohafowouLT7_jr8mKAHbfdkI7AiYBZKMed5NKpagA=": [
+      {title:"设计场景-项目管理", type:"笔记", media_type:11, note_id:"7472318783693881"},
+      {title:"AIX MBO Setting", type:"笔记", media_type:11, note_id:"7469190575304454"},
+      {title:"ima知识库使用指南.docx", type:"文档", media_type:3}
+    ]
+  }
+};
+let imaData = JSON.parse(JSON.stringify(EMBEDDED_IMA));
+// 默认显示最新年份
+let selectedYear = (()=>{const ys=new Set();EMBEDDED_MONTHLY.forEach(r=>ys.add(parseInt(r.month.slice(0,4))));return[...ys].sort().pop()||'all';})();
+
+// ==================== Utils ====================
+const fmt = n => n.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtI = n => Math.round(n).toLocaleString('zh-CN');
+const fmtPct = n => (n*100).toFixed(1)+'%';
+
+function getYear(m) { return parseInt(m.month.slice(0,4)); }
+function getAllYears() { const ys = new Set(); salaryData.forEach(r => ys.add(getYear(r))); return [...ys].sort(); }
+
+// ==================== Stats ====================
+function getYearStats(data) {
+  const totalShould = data.reduce((s,r)=>s+r.shouldPay,0);
+  const totalNet = data.reduce((s,r)=>s+r.netPay,0);
+  const totalDeduct = data.reduce((s,r)=>s+r.deduct,0);
+  const avgNet = data.length>0 ? totalNet/data.length : 0;
+  return {count:data.length,totalShould,totalNet,totalDeduct,avgNet};
+}
+
+function getLatestBase() {
+  if (salaryData.length===0) return 0;
+  return salaryData[salaryData.length-1].base;
+}
+
+function renderStats() {
+  const filtered = selectedYear==='all' ? salaryData : salaryData.filter(r=>getYear(r)===selectedYear);
+  const s = getYearStats(filtered);
+  const latestBase = getLatestBase();
+  const container = document.getElementById('salaryStats');
+  container.innerHTML = [
+    {v:'¥'+fmtI(s.totalShould), l:'应发合计'},
+    {v:'¥'+fmtI(s.totalNet),    l:'实发合计'},
+    {v:'¥'+fmtI(Math.round(s.avgNet)), l:'月均实发'},
+    {v:'¥'+fmtI(s.totalDeduct), l:'扣款合计'},
+    {v:fmtPct(s.totalNet/(s.totalShould||1)), l:'实发率'},
+    {v:'¥'+fmtI(latestBase),    l:'当前基本工资'},
+  ].map(x=>`<div class="salary-stat highlight"><div class="stat-val">${x.v}</div><div class="stat-label">${x.l}</div></div>`).join('');
+}
+
+// ==================== Year tabs ====================
+function renderYearTabs() {
+  const years = getAllYears().reverse();
+  const tabs = years.map(y=>({y,label:String(y)}));
+  tabs.push({y:'all',label:'全部'});
+  const cur = selectedYear==='all'?'all':parseInt(selectedYear);
+  document.getElementById('yearTabs').innerHTML = tabs.map(t =>
+    `<span class="year-tab${cur===t.y?' active':''}" data-y="${t.y}">${t.label}</span>`).join('');
+  document.querySelectorAll('.year-tab').forEach(el=>{
+    el.addEventListener('click',()=>{
+      selectedYear = el.dataset.y==='all'?'all':parseInt(el.dataset.y);
+      renderAllSalary();
+    });
+  });
+}
+
+// ==================== Chart ====================
+function drawBarChart() {
+  const canvas = document.getElementById('salaryChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio||1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W=rect.width, H=250;
+  canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  const filter = selectedYear==='all' ? salaryData : salaryData.filter(r=>getYear(r)===selectedYear);
+  // 时间顺序（旧→新），全部模式下取最近 36 个月
+  let data = filter;
+  if (selectedYear==='all' && data.length>36) data = data.slice(-36);
+
+  const pad={top:24,right:24,bottom:40,left:52};
+  const pw=W-pad.left-pad.right, ph=H-pad.top-pad.bottom;
+
+  ctx.clearRect(0,0,W,H);
+
+  if (data.length===0) return;
+
+  const maxVal = Math.max(...data.map(r=>Math.max(r.shouldPay,r.netPay)));
+  const yMax = Math.ceil(maxVal/50000)*50000||50000;
+  const yTicks=5;
+
+  // grid
+  ctx.strokeStyle='rgba(0,0,0,0.06)';ctx.lineWidth=1;
+  for(let i=0;i<=yTicks;i++){
+    const y=pad.top+(ph/yTicks)*i;
+    ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();
+    ctx.fillStyle='#9aa1b2';ctx.font='10px sans-serif';ctx.textAlign='right';
+    ctx.fillText(((yMax-(yMax/yTicks)*i)/10000).toFixed(0)+'w',pad.left-6,y+4);
+  }
+
+  const barW=Math.min(18, pw/data.length/2.6);
+  const gap=pw/data.length;
+
+  data.forEach((r,i)=>{
+    const x=pad.left+gap*i+gap/2-barW;
+    const drawBar=(val,color)=>{
+      const h=Math.max(0,(val/yMax)*ph);
+      const y=pad.top+ph-h;
+      ctx.fillStyle=color;
+      ctx.beginPath();ctx.roundRect(x,y,barW,h,[3,3,0,0]);ctx.fill();
+    };
+    drawBar(r.shouldPay,'rgba(240,185,11,0.55)');
+    drawBar(r.netPay,'rgba(0,212,170,0.7)');
+  });
+
+  // X labels
+  data.forEach((r,i)=>{
+    const x=pad.left+gap*i+gap/2;
+    ctx.fillStyle='#9aa1b2';ctx.font='9px sans-serif';ctx.textAlign='center';
+    const lbl = data.length>24 ? (parseInt(r.month.slice(5))===1||i===0||i===data.length-1?r.month.slice(2):'') : r.month.slice(2);
+    ctx.fillText(lbl,x,H-pad.bottom+16);
+  });
+
+  // legend
+  const lx=W-pad.right-90,ly=4;
+  ctx.fillStyle='rgba(240,185,11,0.7)';ctx.fillRect(lx,ly,10,10);
+  ctx.fillStyle='#5a6378';ctx.font='10px sans-serif';ctx.textAlign='left';ctx.fillText('应发',lx+14,ly+9);
+  ctx.fillStyle='rgba(0,212,170,0.8)';ctx.fillRect(lx+40,ly,10,10);
+  ctx.fillText('实发',lx+54,ly+9);
+}
+
+function drawPieChart() {
+  const canvas=document.getElementById('salaryPie');
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.parentElement.getBoundingClientRect();
+  const W=rect.width,H=250;
+  canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  // Use the data currently filtered
+  const filter = selectedYear==='all' ? salaryData : salaryData.filter(r=>getYear(r)===selectedYear);
+
+  const cats=[
+    {key:'base',label:'基本工资',color:'#4d8af0'},
+    {key:'allowance',label:'津贴',color:'#a277ff'},
+    {key:'bonus',label:'奖金',color:'#f0b90b'},
+    {key:'overtime',label:'加班费',color:'#ff6b9d'},
+    {key:'annual',label:'年终奖',color:'#ff5577'},
+    {key:'other',label:'其他',color:'#00d4aa'},
+  ];
+  const totals={};
+  cats.forEach(c=>{totals[c.key]=filter.reduce((s,r)=>s+(r[c.key]||0),0)});
+  const grand=Object.values(totals).reduce((s,v)=>s+v,0);
+  const slices=cats.filter(c=>totals[c.key]>0);
+
+  const cx=W*0.35,cy=H/2,r=Math.min(cx-10,cy-16,88);
+  let angle=-Math.PI/2;
+  slices.forEach(s=>{
+    const sa=(totals[s.key]/grand)*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,angle,angle+sa);ctx.closePath();
+    ctx.fillStyle=s.color;ctx.fill();
+    const mid=angle+sa/2;
+    const lx=cx+Math.cos(mid)*(r+14),ly=cy+Math.sin(mid)*(r+14);
+    const pct=((totals[s.key]/grand)*100).toFixed(1);
+    ctx.fillStyle='#5a6378';ctx.font='10px sans-serif';
+    ctx.textAlign=mid>Math.PI/2||mid<-Math.PI/2?'right':'left';
+    ctx.fillText(s.label+' '+pct+'%',lx+(mid>Math.PI/2||mid<-Math.PI/2?-4:4),ly+4);
+    angle+=sa;
+  });
+}
+
+// ==================== Tables ====================
+function renderAnnualTable() {
+  const tbody=document.getElementById('annualTableBody');
+  tbody.innerHTML=[...annualData].reverse().map(r=>{
+    const sYoY=typeof r.shouldYoY==='number'?(r.shouldYoY>=0?'col-up':'col-down'):'';
+    const nYoY=typeof r.netYoY==='number'?(r.netYoY>=0?'col-up':'col-down'):'';
+    return `<tr>
+      <td>${r.label||r.year}</td>
+      <td class="col-total">¥${fmtI(r.shouldPay)}</td>
+      <td class="col-real">¥${fmtI(r.netPay)}</td>
+      <td>¥${fmtI(r.deduct)}</td>
+      <td>${fmtPct(r.deductRate)}</td>
+      <td class="${sYoY}">${typeof r.shouldYoY==='number'?((r.shouldYoY*100).toFixed(1)+'%'):r.shouldYoY}</td>
+      <td class="${nYoY}">${typeof r.netYoY==='number'?((r.netYoY*100).toFixed(1)+'%'):r.netYoY}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderMonthlyTable() {
+  const filterRaw = selectedYear==='all' ? salaryData : salaryData.filter(r=>getYear(r)===selectedYear);
+  const filter = [...filterRaw].reverse();
+  const tbody=document.getElementById('salaryTableBody');
+
+  // Group by year
+  let lastYear=null;
+  let html='';
+  filter.forEach(r=>{
+    const y=getYear(r);
+    if (y!==lastYear) {
+      html+=`<tr class="year-sep"><td colspan="10">—— ${y} 年 ——</td></tr>`;
+      lastYear=y;
+    }
+    html+=`<tr class="row-${y}">
+      <td>${r.month}</td>
+      <td>${fmt(r.base)}</td>
+      <td>${r.allowance?fmt(r.allowance):'-'}</td>
+      <td>${r.bonus?fmt(r.bonus):'-'}</td>
+      <td>${r.overtime?fmt(r.overtime):'-'}</td>
+      <td>${r.annual?fmt(r.annual):'-'}</td>
+      <td>${r.other?fmt(r.other):'-'}</td>
+      <td class="col-total">${fmt(r.shouldPay)}</td>
+      <td class="col-real">${fmt(r.netPay)}</td>
+      <td class="col-deduct">${fmt(r.deduct)}</td>
+    </tr>`;
+  });
+  tbody.innerHTML=html;
+}
+
+function renderAllSalary(){
+  renderStats();
+  renderYearTabs();
+  drawBarChart();
+  drawPieChart();
+  renderMonthlyTable();
+}
+
+// ==================== Excel Parsing ====================
+function parseExcel(wb){
+  // Parse monthly sheet
+  const monthlySheet = wb.Sheets[wb.SheetNames[0]];
+  const mRows = XLSX.utils.sheet_to_json(monthlySheet,{header:1,defval:null});
+  let headerIdx=-1;
+  for(let i=0;i<mRows.length;i++){if(mRows[i]&&mRows[i].some(c=>c&&String(c).includes('基本工资'))){headerIdx=i;break;}}
+  if(headerIdx<0) return null;
+
+  const monthly=[];
+  for(let i=headerIdx+1;i<mRows.length;i++){
+    const r=mRows[i];if(!r||!r[0])continue;
+    // Handle datetime or string month
+    let monthStr='';
+    const raw=r[0];
+    if(raw instanceof Date){monthStr=raw.getFullYear()+'-'+String(raw.getMonth()+1).padStart(2,'0');}
+    else if(typeof raw==='number'){const d=XLSX.SSF.parse_date_code(raw);monthStr=d.y+'-'+String(d.m).padStart(2,'0');}
+    else{const s=String(raw).trim();if(!s||!/^\d/.test(s))continue;monthStr=s.slice(0,7);}
+    if(!/^\d{4}-\d{2}$/.test(monthStr))continue;
+    monthly.push({
+      month:monthStr,
+      base:Number(r[1])||0,allowance:Number(r[2])||0,bonus:Number(r[3])||0,
+      overtime:Number(r[4])||0,annual:Number(r[5])||0,other:Number(r[6])||0,
+      shouldPay:Number(r[7])||0,netPay:Number(r[8])||0,deduct:Number(r[9])||0
+    });
+  }
+  if(monthly.length===0)return null;
+
+  // Parse annual sheet (if exists)
+  let annual=[];
+  if(wb.SheetNames.length>1){
+    const annualSheet=wb.Sheets[wb.SheetNames[1]];
+    const aRows=XLSX.utils.sheet_to_json(annualSheet,{header:1,defval:null});
+    headerIdx=-1;
+    for(let i=0;i<aRows.length;i++){if(aRows[i]&&aRows[i].some(c=>c&&String(c).includes('年份'))){headerIdx=i;break;}}
+    if(headerIdx>=0){
+      for(let i=headerIdx+1;i<aRows.length;i++){
+        const r=aRows[i];if(!r||!r[0])continue;
+        const yr=Number(r[0]);
+        if(!yr||isNaN(yr))continue;
+        const label=String(r[0]).includes('累计')?String(r[0]):null;
+        annual.push({
+          year:yr,label,
+          shouldPay:Number(r[1])||0,netPay:Number(r[2])||0,deduct:Number(r[3])||0,
+          deductRate:Number(r[4])||0,
+          shouldYoY:typeof r[5]==='number'?r[5]:(r[5]&&String(r[5])!=='-'?Number(r[5]):'-'),
+          netYoY:typeof r[6]==='number'?r[6]:(r[6]&&String(r[6])!=='-'?Number(r[6]):'-'),
+        });
+      }
+    }
+  }
+
+  return {monthly,annual};
+}
+
+function handleUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const parsed=parseExcel(wb);
+      if(parsed&&parsed.monthly.length>0){
+        salaryData=parsed.monthly;
+        if(parsed.annual.length>0)annualData=parsed.annual;
+        localStorage.setItem('dash_salary_v2',JSON.stringify(parsed.monthly));
+        localStorage.setItem('dash_annual_v2',JSON.stringify(parsed.annual.length>0?parsed.annual:annualData));
+        selectedYear='all';
+        renderAllSalary();
+      }else{alert('未能解析工资数据，请确认文件格式正确。');}
+    }catch(err){alert('读取失败: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ==================== Clock ====================
+function updateClock(){
+  const now=new Date();
+  document.getElementById('clockTime').textContent=[now.getHours(),now.getMinutes(),now.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+  document.getElementById('clockDate').textContent=now.getFullYear()+'年'+String(now.getMonth()+1).padStart(2,'0')+'月'+String(now.getDate()).padStart(2,'0')+'日';
+  document.getElementById('clockWeekday').textContent=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'][now.getDay()];
+}
+
+// ==================== Todo ====================
+function loadTodos(){try{return JSON.parse(localStorage.getItem('dash_todos')||'[]')}catch{return[]}}
+function saveTodos(t){localStorage.setItem('dash_todos',JSON.stringify(t))}
+function esc(s){const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};return s.replace(/[&<>"']/g,c=>m[c])}
+
+function renderTodos(){
+  const todos=loadTodos(),list=document.getElementById('todoList'),empty=document.getElementById('todoEmpty');
+  if(todos.length===0){list.innerHTML='';empty.style.display='block';return}
+  empty.style.display='none';
+  list.innerHTML=todos.map((t,i)=>`<li class="${t.done?'done':''}"><span class="check" data-i="${i}">✓</span><span class="text">${esc(t.text)}</span><button class="del" data-i="${i}">×</button></li>`).join('');
+  list.querySelectorAll('.check').forEach(el=>el.addEventListener('click',()=>{const t=loadTodos();t[Number(el.dataset.i)].done=!t[Number(el.dataset.i)].done;saveTodos(t);renderTodos()}));
+  list.querySelectorAll('.del').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();const t=loadTodos();t.splice(Number(el.dataset.i),1);saveTodos(t);renderTodos()}));
+}
+function addTodo(){const v=document.getElementById('todoInput').value.trim();if(!v)return;const t=loadTodos();t.unshift({text:v,done:false});saveTodos(t);document.getElementById('todoInput').value='';renderTodos()}
+
+// ==================== Links ====================
+const DEFAULT_LINKS=[
+  {name:'DeepSeek',  url:'https://www.deepseek.com',     icon:'DS', bg:'#1E88E5'},
+  {name:'智谱',       url:'https://open.bigmodel.cn',     icon:'Z',  bg:'#4A5FE8'},
+  {name:'MiniMax',  url:'https://platform.minimaxi.com/', icon:'M',  bg:'#FF6B35'},
+  {name:'GitHub',   url:'https://github.com',            icon:'GH', bg:'#181717'},
+  {name:'Google',   url:'https://www.google.com',        icon:'G',  bg:'#4285F4'},
+  {name:'Gmail',    url:'https://mail.google.com',       icon:'M',  bg:'#EA4335'},
+  {name:'YouTube',  url:'https://www.youtube.com',       icon:'▶',  bg:'#FF0000'},
+  {name:'知乎',      url:'https://www.zhihu.com',         icon:'知', bg:'#056DE8'},
+  {name:'Bilibili', url:'https://www.bilibili.com',     icon:'B',  bg:'#FB7299'}
+];
+const COLORS=['#4d8af0','#a277ff','#00d4aa','#f0b90b','#ff6b9d','#6c5ce7','#00b894','#e17055','#0984e3'];
+function loadLinks(){try{return JSON.parse(localStorage.getItem('dash_links_v2')||'null')||DEFAULT_LINKS}catch{return DEFAULT_LINKS}}
+function saveLinks(l){localStorage.setItem('dash_links_v2',JSON.stringify(l))}
+
+function renderLinks(){
+  const links=loadLinks(),grid=document.getElementById('linksGrid');
+  grid.innerHTML=links.map((l,i)=>`<a class="link-chip" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="link-icon" style="background:${esc(l.bg||'#333')};">${esc(l.icon||'🔗')}</span>${esc(l.name)}<button class="link-del" data-i="${i}">×</button></a>`).join('');
+  grid.querySelectorAll('.link-del').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const l=loadLinks();l.splice(Number(el.dataset.i),1);saveLinks(l);renderLinks()}));
+}
+function addLink(){
+  const n=document.getElementById('linkNameInput'),u=document.getElementById('linkUrlInput');
+  const name=n.value.trim(),url=u.value.trim();if(!name||!url)return;
+  const links=loadLinks();links.push({name,url:/^https?:\/\//i.test(url)?url:'https://'+url,icon:'🔗',bg:COLORS[Math.floor(Math.random()*COLORS.length)]});
+  saveLinks(links);n.value='';u.value='';renderLinks();
+}
+
+// ==================== ima 知识库 ====================
+function loadImaConfig(){try{return JSON.parse(localStorage.getItem('dash_ima_cfg')||'null')}catch{return null}}
+function saveImaConfig(c){localStorage.setItem('dash_ima_cfg',JSON.stringify(c))}
+function loadImaData(){try{return JSON.parse(localStorage.getItem('dash_ima_data_v2')||'null')}catch{return null}}
+function saveImaData(d){localStorage.setItem('dash_ima_data_v2',JSON.stringify(d))}
+
+// media_type → 图标 + 标签
+const IMA_TYPE_ICONS = {
+  1: {icon:'📕', label:'PDF',     color:'#ff5577'},
+  3: {icon:'📄', label:'Word',    color:'#4d8af0'},
+  4: {icon:'📊', label:'PPT',     color:'#ff8c00'},
+  5: {icon:'📗', label:'Excel',   color:'#10b981'},
+  7: {icon:'📋', label:'文本',     color:'#8892a8'},
+  9: {icon:'🖼️', label:'图片',     color:'#a277ff'},
+  11:{icon:'📝', label:'笔记',     color:'#00d4aa'},
+  13:{icon:'📑', label:'Markdown',color:'#4d8af0'},
+  14:{icon:'📰', label:'公众号文章',color:'#10b981'},
+  15:{icon:'🌐', label:'网页',     color:'#4d8af0'}
+};
+function imaIconByType(mt){
+  return IMA_TYPE_ICONS[mt]||{icon:'📁',label:'文件',color:'#8892a8'};
+}
+
+async function syncImaFromProxy(){
+  const cfg=loadImaConfig();
+  if(!cfg||!cfg.clientId||!cfg.apiKey)return{ok:false,reason:'no_config'};
+  try{
+    const r=await fetch('http://localhost:8765/health',{signal:AbortSignal.timeout(2000)});
+    if(!r.ok)return{ok:false,reason:'proxy_offline'};
+  }catch(e){return{ok:false,reason:'proxy_offline'};}
+
+  try{
+    const r=await fetch('http://localhost:8765/agent-interface/knowledge-bases',{
+      headers:{'X-Ima-Client-Id':cfg.clientId,'X-Ima-Api-Key':cfg.apiKey}
+    });
+    if(!r.ok)return{ok:false,reason:'api_'+r.status};
+    const data=await r.json();
+    // 兼容多种响应结构
+    let kbs=null;
+    if(data.data&&data.data.info_list) kbs=data.data.info_list;
+    else if(data.knowledge_bases) kbs=data.knowledge_bases;
+    else if(Array.isArray(data)) kbs=data;
+    if(!kbs||!Array.isArray(kbs))return{ok:false,reason:'no_data'};
+
+    // 归一化为统一格式
+    kbs=kbs.map(kb=>({
+      id: kb.kb_id||kb.id,
+      name: kb.kb_name||kb.name,
+      content_count: parseInt(kb.content_count||0),
+      description: kb.description||'',
+      cover_url: kb.cover_url||'',
+      type: kb.base_type||'知识库'
+    }));
+
+    const newData={knowledge_bases:kbs,contents:{},notes:{},lastSync:Date.now()};
+
+    // 拉取每个知识库的内容
+    for(const kb of kbs){
+      try{
+        const lr=await fetch(`http://localhost:8765/agent-interface/knowledge-list?knowledge_base_id=${encodeURIComponent(kb.id)}`,{headers:{'X-Ima-Client-Id':cfg.clientId,'X-Ima-Api-Key':cfg.apiKey}});
+        if(lr.ok){
+          const ld=await lr.json();
+          const list=ld.data&&ld.data.knowledge_list?ld.data.knowledge_list:(ld.knowledge_list||ld.list||[]);
+          // 归一化字段: note_id 优先从 notebook_ext_info 提取，其次从 notebook_id
+          newData.contents[kb.id]=list.map(item=>({
+            ...item,
+            note_id:item.notebook_ext_info&&item.notebook_ext_info.notebook_id||item.notebook_id||item.note_id||''
+          }));
+        }
+      }catch(e){}
+    }
+
+    // 拉取每个笔记的内容（保留 JSON 结构以便渲染格式）
+    for(const kbId in newData.contents){
+      for(const c of newData.contents[kbId]){
+        if(c.media_type===11&&c.note_id){
+          try{
+            const nr=await fetch(`http://localhost:8765/agent-interface/note-content?note_id=${encodeURIComponent(c.note_id)}`,{headers:{'X-Ima-Client-Id':cfg.clientId,'X-Ima-Api-Key':cfg.apiKey}});
+            if(nr.ok){
+              const nd=await nr.json();
+              // 保存原始 JSON 字符串，渲染时再解析
+              const content=nd.data&&nd.data.content?nd.data.content:(nd.content||'');
+              newData.notes[c.note_id]={title:c.title,content};
+            }
+          }catch(e){}
+        }
+      }
+    }
+
+    return{ok:true,data:newData};
+  }catch(e){return{ok:false,reason:'error:'+e.message};}
+}
+
+async function syncIma(){
+  const btn=document.getElementById('imaSyncBtn');
+  const bar=document.getElementById('imaStatusBar');
+  btn.classList.add('syncing');
+  bar.className='ima-status-bar syncing';
+  bar.innerHTML='<span class="sync-dot"></span>同步中...';
+
+  const res=await syncImaFromProxy();
+  btn.classList.remove('syncing');
+
+  if(res.ok){
+    imaData=res.data;
+    saveImaData(imaData);
+    renderImaKbList();
+    bar.className='ima-status-bar ok';
+    bar.innerHTML=`<span class="sync-dot"></span>已同步 ${formatSyncTime(imaData.lastSync)}`;
+  }else{
+    bar.className='ima-status-bar error';
+    if(res.reason==='proxy_offline'){
+      bar.innerHTML=`<span class="sync-dot"></span>代理未启动 · <a class="ima-start-link" id="imaStartLink">点击启动服务</a> <span style="color:var(--text-dim);font-size:.6rem;">(一次性,开机自启)</span>`;
+      const sl=document.getElementById('imaStartLink');
+      if(sl)sl.onclick=startImaProxyService;
+    }else if(res.reason==='no_config'){
+      bar.innerHTML='<span class="sync-dot"></span>请先在设置中填写 Client ID 和 API Key';
+    }else{
+      bar.innerHTML=`<span class="sync-dot"></span>同步失败: ${res.reason}`;
+    }
+  }
+}
+
+// 一键启动代理服务（通过打开 .command 文件触发 Terminal）
+function startImaProxyService(){
+  const url='install_proxy_service.sh';
+  // 在新窗口打开 .sh 文件（macOS 会显示询问对话框）
+  // 更可靠的方式：触发下载并提示用户在终端运行
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='install_ima_proxy.command';
+  a.click();
+  const bar=document.getElementById('imaStatusBar');
+  bar.innerHTML='<span class="sync-dot"></span>已下载安装脚本，请在终端运行 <code style="background:rgba(0,0,0,.3);padding:1px 4px;border-radius:3px;font-size:.6rem;">./install_ima_proxy.command</code>（或双击运行）';
+}
+
+function formatSyncTime(ts){
+  if(!ts)return'从未';
+  const d=new Date(ts);
+  const now=Date.now();
+  const diff=now-ts;
+  if(diff<60000)return'刚刚';
+  if(diff<3600000)return Math.floor(diff/60000)+' 分钟前';
+  if(diff<86400000)return Math.floor(diff/3600000)+' 小时前';
+  return d.getMonth()+1+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+
+async function connectIma(){
+  const clientId=document.getElementById('imaClientId').value.trim();
+  const apiKey=document.getElementById('imaApiKey').value.trim();
+  const status=document.getElementById('imaStatus');
+  if(!clientId||!apiKey){status.textContent='请填写凭证';status.className='ima-api-status pending';return}
+  status.textContent='保存中...';status.className='ima-api-status pending';
+  saveImaConfig({clientId,apiKey});
+  status.textContent='已配置';status.className='ima-api-status ok';
+  // 自动触发一次同步
+  await syncIma();
+}
+
+function renderImaKbList(kbs){
+  const container=document.getElementById('imaKbList');
+  const data = imaData||EMBEDDED_IMA;
+  const kbList = data.knowledge_bases||[];
+
+  if(!kbList||kbList.length===0){
+    container.innerHTML=`<a class="ima-kb-chip" href="https://ima.qq.com" target="_blank" rel="noopener"><span class="kb-icon">📚</span>打开 ima 知识库<span class="kb-count">ima.qq.com</span></a>`;
+    return;
+  }
+
+  let html='';
+  kbList.forEach(kb=>{
+    // 知识库名称作为分隔标签
+    html+=`<div class="ima-folder"><span>📁</span>${kb.name} <span style="color:var(--text-dim);font-size:.6rem;">(${kb.content_count||0} 条)</span></div>`;
+    // 内容条目
+    const contents=data.contents&&data.contents[kb.id];
+    if(contents&&contents.length>0){
+      contents.forEach(c=>{
+        const t=imaIconByType(c.media_type);
+        const noteId=c.note_id||c.notebook_id||'';
+        const hasNote=noteId&&data.notes&&data.notes[noteId];
+        const cls=hasNote?'ima-kb-item ima-kb-note':'ima-kb-item';
+        const typeBadge=hasNote?t.label:(c.type||t.label);
+        html+=`<span class="${cls}" data-note-id="${noteId}" data-media-type="${c.media_type}">`;
+        html+=`<span class="kb-icon">${t.icon}</span>${c.title}`;
+        html+=`<span class="kb-count" style="color:${t.color}">${typeBadge}</span></span>`;
+      });
+    }
+  });
+  container.innerHTML=html;
+
+  // 更新右上角知识库图标提示
+  if(kbList.length>0){
+    const ik=document.getElementById('imaKbIconLink');
+    ik.title='在 ima 中打开: '+kbList[0].name;
+    ik.style.display='';
+  }
+
+  // 绑定笔记点击事件
+  container.querySelectorAll('.ima-kb-note').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const noteId=el.dataset.noteId;
+      const note=data.notes&&data.notes[noteId];
+      const t=imaIconByType(Number(el.dataset.mediaType));
+      document.getElementById('imaNoteTitle').textContent=t.icon+' '+el.textContent.trim().split(/\s+/)[1]||note.title;
+      const contentEl=document.getElementById('imaNoteContent');
+      if(note&&note.content){
+        // content 可能是 JSON 数组或纯文本
+        contentEl.innerHTML=renderImaNoteContent(note.content);
+      }else{
+        contentEl.textContent='(空内容)';
+      }
+      document.getElementById('imaNoteViewer').style.display='block';
+    });
+  });
+}
+
+// 把 ima 笔记内容渲染为 HTML
+// 输入: JSON 字符串(由 target_content_format=2 返回) 或 纯文本
+function renderImaNoteContent(raw){
+  if(!raw)return'';
+  let blocks;
+  try{blocks=JSON.parse(raw);}catch{return escHtml(raw);}
+  if(!Array.isArray(blocks))return escHtml(raw);
+  return blocks.map(block=>renderImaBlock(block)).join('');
+}
+
+function renderImaBlock(b){
+  if(!b)return'';
+  const text=b.children?b.children.map(c=>renderInline(c)).join(''):'';
+  const style=[];
+  if(b.align==='center')style.push('text-align:center');
+  else if(b.align==='right')style.push('text-align:right');
+  else if(b.align==='justify')style.push('text-align:justify');
+  const astyle=style.length?' style="'+style.join(';')+'"':'';
+
+  switch(b.type){
+    case 'h1':return`<h1 class="ima-h1"${astyle}>${text}</h1>`;
+    case 'h2':return`<h2 class="ima-h2"${astyle}>${text}</h2>`;
+    case 'h3':return`<h3 class="ima-h3"${astyle}>${text}</h3>`;
+    case 'p': return`<p class="ima-p"${astyle}>${text}</p>`;
+    case 'hr':return'<hr class="ima-hr">';
+    case 'blockquote':return`<blockquote class="ima-bq">${text}</blockquote>`;
+    case 'code':return`<pre class="ima-pre"><code>${text}</code></pre>`;
+    case 'ul':case 'ol':case 'li':return text; // 简化
+    case 'img':
+      return b.url?`<img class="ima-img" src="${escAttr(b.url)}" alt="${escAttr(b.alt||'')}">`:'';
+    default:
+      // 默认当成段落
+      return text?`<p class="ima-p"${astyle}>${text}</p>`:'';
+  }
+}
+
+function renderInline(c){
+  if(typeof c==='string')return escHtml(c);
+  if(!c||!c.text)return'';
+  let s=escHtml(c.text);
+  if(c.bold)s=`<strong>${s}</strong>`;
+  if(c.italic)s=`<em>${s}</em>`;
+  if(c.underline)s=`<u>${s}</u>`;
+  if(c.strikethrough)s=`<s>${s}</s>`;
+  if(c.code)s=`<code class="ima-code-inline">${s}</code>`;
+  if(c.color)s=`<span style="color:${escAttr(c.color)}">${s}</span>`;
+  if(c.bgColor||c.background)s=`<span style="background:${escAttr(c.bgColor||c.background)}">${s}</span>`;
+  if(c.highlight)s=`<mark>${s}</mark>`;
+  if(c.url||c.href)s=`<a class="ima-link" href="${escAttr(c.url||c.href)}" target="_blank" rel="noopener">${s}</a>`;
+  return s;
+}
+
+function escHtml(s){const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};return String(s||'').replace(/[&<>"']/g,c=>m[c]);}
+function escAttr(s){return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+// ==================== 体重日历 ====================
+let weightData=[];
+let weightCalYear,weightCalMonth;
+
+async function loadWeight(){
+  const loading=document.getElementById('weightLoading');
+  loading.style.display='block';
+  try{
+    const r=await fetch('http://localhost:8765/local/weight');
+    if(r.ok) weightData=await r.json();
+  }catch(e){}
+  loading.style.display='none';
+  renderWeight();
+}
+
+function getWeightForDate(dateStr){
+  return weightData.find(w=>w.date===dateStr);
+}
+
+function renderWeightStats(){
+  const container=document.getElementById('weightStats');
+  if(weightData.length===0){
+    container.innerHTML=`<div class="weight-stat" style="flex-basis:100%;"><div class="v" style="color:var(--text-dim);">--</div><div class="l">暂无数据</div></div>`;
+    return;
+  }
+  const sorted=[...weightData].sort((a,b)=>a.date.localeCompare(b.date));
+  const latest=sorted[sorted.length-1];
+  const first=sorted[0];
+  const weights=sorted.map(w=>w.weight_kg);
+  const maxW=Math.max(...weights);
+  const minW=Math.min(...weights);
+  const diff=(latest.weight_kg-first.weight_kg).toFixed(1);
+  const diffColor=diff>0?'#fb7185':diff<0?'#00d4aa':'var(--text-dim)';
+  const diffSign=diff>0?'+':'';
+  container.innerHTML=[
+    {v:latest.weight_kg+'kg',l:`最新 ${latest.date.slice(5)}`},
+    {v:minW+'kg',l:'最低'},
+    {v:maxW+'kg',l:'最高'},
+    {v:diffSign+diff+'kg',l:'变化',color:diffColor},
+  ].map(s=>`<div class="weight-stat"><div class="v" style="${s.color?'color:'+s.color:''}">${s.v}</div><div class="l">${s.l}</div></div>`).join('');
+}
+
+function renderWeightCalendar(){
+  const titleEl=document.getElementById('weightCalTitle');
+  titleEl.textContent=`${weightCalYear} 年 ${weightCalMonth+1} 月`;
+  const daysEl=document.getElementById('weightCalDays');
+  const first=new Date(weightCalYear,weightCalMonth,1);
+  const last=new Date(weightCalYear,weightCalMonth+1,0);
+  const startDow=first.getDay();
+  const totalDays=last.getDate();
+  const today=new Date();
+  let html='';
+  for(let i=0;i<startDow;i++)html+='<div class="weight-day empty"></div>';
+  for(let d=1;d<=totalDays;d++){
+    const dateStr=`${weightCalYear}-${String(weightCalMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const w=getWeightForDate(dateStr);
+    const isToday=today.getFullYear()===weightCalYear&&today.getMonth()===weightCalMonth&&today.getDate()===d;
+    const cls=['weight-day'];
+    if(w)cls.push('has-data');
+    if(isToday)cls.push('today');
+    html+=`<div class="${cls.join(' ')}" title="${w?dateStr+' '+w.weight_kg+'kg'+(w.note?' ('+w.note+')':''):dateStr}">`;
+    html+=`<div class="wd">${d}</div>`;
+    if(w){
+      html+=`<div class="ww">${w.weight_kg}</div>`;
+      if(w.note)html+=`<div class="wn">${w.note}</div>`;
+    }
+    html+='</div>';
+  }
+  daysEl.innerHTML=html;
+}
+
+function renderWeight(){
+  renderWeightStats();
+  renderWeightCalendar();
+}
+
+function navigateMonth(delta){
+  weightCalMonth+=delta;
+  if(weightCalMonth<0){weightCalMonth=11;weightCalYear--;}
+  if(weightCalMonth>11){weightCalMonth=0;weightCalYear++;}
+  renderWeightCalendar();
+}
+
+function goToToday(){
+  const t=new Date();
+  weightCalYear=t.getFullYear();
+  weightCalMonth=t.getMonth();
+  renderWeightCalendar();
+}
+
+// 关闭笔记查看面板
+document.addEventListener('DOMContentLoaded',()=>{
+  // (实际绑定在下方的 init 中)
+});
+
+// ==================== Init ====================
+document.addEventListener('DOMContentLoaded',()=>{
+  // 优先用缓存，新版本 key 避免读到旧数据
+  const cachedM=localStorage.getItem('dash_salary_v2');
+  if(cachedM){try{salaryData=JSON.parse(cachedM)}catch{salaryData=[...EMBEDDED_MONTHLY]}}
+  const cachedA=localStorage.getItem('dash_annual_v2');
+  if(cachedA){try{annualData=JSON.parse(cachedA)}catch{annualData=[...EMBEDDED_ANNUAL]}}
+  // 清除旧版本缓存
+  localStorage.removeItem('dash_salary');
+  localStorage.removeItem('dash_annual');
+  localStorage.removeItem('dash_links');
+  localStorage.removeItem('dash_links_v2');
+
+  renderAllSalary();
+  renderAnnualTable();
+  window.addEventListener('resize',()=>{drawBarChart();drawPieChart()});
+
+  updateClock();setInterval(updateClock,1000);
+
+  renderTodos();
+  document.getElementById('todoAdd').addEventListener('click',addTodo);
+  document.getElementById('todoInput').addEventListener('keydown',e=>{if(e.key==='Enter')addTodo()});
+
+  renderLinks();
+  document.getElementById('linkAdd').addEventListener('click',addLink);
+  document.getElementById('linkUrlInput').addEventListener('keydown',e=>{if(e.key==='Enter')addLink()});
+  document.getElementById('linkNameInput').addEventListener('keydown',e=>{if(e.key==='Enter')addLink()});
+
+  document.getElementById('salaryUploadBtn').addEventListener('click',()=>document.getElementById('salaryFileInput').click());
+  document.getElementById('salaryFileInput').addEventListener('change',handleUpload);
+
+  // ima — 从 localStorage 恢复或使用预配置凭证
+  const imaCfg=loadImaConfig()||{clientId:'c6db072aea0251f28ac1a84d5f42f914',apiKey:'GwH61TREuW+sL63YG/c5U0GQ08g8jPymUT0XgoSi6Wo+0OSRDByNVZJWAAUnotiWp/3Vi1ACwg=='};
+  if(!loadImaConfig())saveImaConfig(imaCfg);
+  document.getElementById('imaClientId').value=imaCfg.clientId||'';
+  document.getElementById('imaApiKey').value=imaCfg.apiKey||'';
+
+  // 优先用最新缓存数据
+  const cachedIma=loadImaData();
+  if(cachedIma){imaData=cachedIma;}
+
+  document.getElementById('imaConnect').addEventListener('click',connectIma);
+  document.getElementById('imaSyncBtn').addEventListener('click',syncIma);
+  renderImaKbList();
+
+  // 初始化状态栏
+  const bar=document.getElementById('imaStatusBar');
+  if(imaData&&imaData.lastSync){
+    bar.className='ima-status-bar ok';
+    bar.innerHTML=`<span class="sync-dot"></span>已同步 ${formatSyncTime(imaData.lastSync)}`;
+  }else{
+    bar.innerHTML='<span class="sync-dot"></span>未同步 · 点击 🔄 从 ima 拉取';
+  }
+
+  document.getElementById('imaNoteClose').addEventListener('click',()=>{
+    document.getElementById('imaNoteViewer').style.display='none';
+  });
+  document.getElementById('imaApiToggle').addEventListener('click',()=>{
+    document.getElementById('imaApiRow').classList.toggle('show');
+  });
+
+  // 体重日历
+  const t=new Date();
+  weightCalYear=t.getFullYear();
+  weightCalMonth=t.getMonth();
+  document.getElementById('weightPrev').addEventListener('click',()=>navigateMonth(-1));
+  document.getElementById('weightNext').addEventListener('click',()=>navigateMonth(1));
+  document.getElementById('weightToday').addEventListener('click',goToToday);
+  loadWeight();
+});
+</script>
+
+</body>
+</html>
